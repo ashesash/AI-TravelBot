@@ -3,16 +3,19 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import streamlit.components.v1 as components
+from openai import OpenAI
 
 with st.sidebar:
     st.title('🤖💬🛩️ AI TravelBot')
     if 'OPENAI_API_KEY' in st.secrets:
-        st.success('API key already provided!', icon='✅')
         openai.api_key = st.secrets['OPENAI_API_KEY']
+        st.success('API key already provided!', icon='✅')
     else:
+        st.markdown("🔐 We don't save your API keys or any data you enter")
         openai.api_key = st.text_input('Enter OpenAI API token:', type='password')
-        if not (openai.api_key.startswith('sk-') and len(openai.api_key)==51):
+        if not openai.api_key.startswith('sk-'):
             st.warning('Please enter your credentials!', icon='⚠️')
+            st.stop()
         else:
             st.success('Proceed to entering your prompt message!', icon='👉')
 
@@ -73,7 +76,7 @@ if prompt := st.chat_input("Write your message here"):
 
     if all(st.session_state.travel_info.values()):
         with st.chat_message("assistant"):
-            stream = client.chat.completions.create(
+            stream = openai.chat.completions.create(
                 model=st.session_state["openai_model"],
                 messages=[
                     {"role": m["role"], "content": m["content"]}
