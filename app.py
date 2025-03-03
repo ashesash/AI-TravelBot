@@ -3,7 +3,8 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import streamlit.components.v1 as components
-from openai import OpenAI
+import json
+import datetime
 
 with st.sidebar:
     st.title('🤖💬🛩️ AI TravelBot')
@@ -24,8 +25,13 @@ if "openai_model" not in st.session_state:
 
 if "conversation_history" not in st.session_state:
     st.session_state.conversation_history = [
-        {"role": "system", "content": "You are a helpful travel planning assistant. Please focus only on travel-related questions, such as the destination, budget, trip length, and preferred activities."}
+        {"role": "system", "content": "You are a helpful travel planning assistant. Please focus only on travel-related questions, such as the destination, budget, trip length, and preferred activities. At the end of your recommendation also add a dataframe for the itinerary you plan with the following columns: Date, location of the destination, nearest city, description, time to be spent, category, latitude and longitude"}
     ]
+
+        # travel_plan = [
+        #     {"date": "2024-10-10", "location": "Louvre Museum", "nearest_city": "Paris", "description": "Explore world-famous artworks.", "hours": "09:00-12:00", "category": "Culture", "latitude": 48.8606, "longitude": 2.3376},
+        #     {"date": "2024-10-10", "location": "Eiffel Tower", "nearest_city": "Paris", "description": "Visit the iconic landmark.", "hours": "14:00-16:00", "category": "Adventure", "latitude": 48.8584, "longitude": 2.2945}
+        # ]
 
 if 'messages' not in st.session_state:
     st.session_state.messages = [
@@ -56,7 +62,7 @@ if prompt := st.chat_input("Write your message here"):
         next_question = "Great! Now, what's your budget for the trip?"
     elif st.session_state.travel_info["budget"] is None:
         st.session_state.travel_info["budget"] = prompt
-        next_question = "How long are you planning to stay?"
+        next_question = "How long are you planning to stay? Could you give me start and end dates?"
     elif st.session_state.travel_info["trip_length"] is None:
         st.session_state.travel_info["trip_length"] = prompt
         next_question = "What activities or experiences would you like to prioritize?"
@@ -64,13 +70,10 @@ if prompt := st.chat_input("Write your message here"):
         st.session_state.travel_info["activities"] = prompt
         next_question = "Do you have any preferences for accommodation?"
 
-    # If all information is collected, set up to generate the itinerary
     if all(st.session_state.travel_info.values()):
         next_question = "I have all the details. Now let me generate your itinerary!"
 
     st.session_state.messages.append({"role": "assistant", "content": next_question})
-
-    # Display the next follow-up question
     with st.chat_message("assistant"):
         st.markdown(next_question)
 
@@ -88,7 +91,26 @@ if prompt := st.chat_input("Write your message here"):
         st.session_state.messages.append({"role": "assistant", "content": response})
         st.markdown(response)
 
+        try:
+            travel_plan = json.loads(response)
+            itinerary_df = pd.DataFrame(travel_plan)
 
+            csv_file = f"travel_itinerary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            itinerary_df.to_csv(csv_file, index=False)
+            st.success(f"Travel itinerary saved as {csv_file}!")
+            st.dataframe(itinerary_df)
 
+            # Load the updated itinerary events CSV file with coordinates
+            itinerary_df = pd.read_csv("itinerary_events_with_coordinates.csv")
 
+            # Streamlit app
+            st.title('Travel Itinerary Dashboard')
 
+            # Display the itinerary events
+            st.header('Itinerary Events 🐢')
+            st.dataframe(itinerary_df)
+
+        except json.JSONDecodeError as e:
+            st.error(f"Error decoding JSON: {e}")
+        except Exception as e:
+            st.error(f"Error saving CSV: {e}")
